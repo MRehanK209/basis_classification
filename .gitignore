@@ -1,0 +1,10 @@
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+env/
+.llm/
+.vscode/
+.idea/
+.ipynb_checkpoints/
+*.log
