@@ -36,15 +36,11 @@ def initialize_yearly_csv(year):
 # Fetch and process data for all years from 2010 to 2020
 async def fetch_data_for_all_years():
     """Fetch data for each year from 2010 to 2020."""
-    count = 0
-    for year in range(2010, 2021):
+    for year in range(2018, 2021):
         logging.info(f"\nStarting to fetch data for {year}...")
         PARAMS["query"] = f"pica.jah={year}"
         csv_file = initialize_yearly_csv(year)
         await fetch_and_process_all(PARAMS, csv_file, year)
-        count += 1
-        if count > 100:
-            break
 
 # Run the asynchronous fetch and processing for all years
 if __name__ == "__main__":

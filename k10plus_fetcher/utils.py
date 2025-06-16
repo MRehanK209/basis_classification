@@ -117,8 +117,11 @@ async def fetch_and_process_all(params, csv_file, year):
     async with aiohttp.ClientSession() as session:
         start = 1  # Reset start to 1 for each year
         while True:
+            if start > 500000:
+                logging.info(f"Breaking the loop for {year} as start value exceeded 500,000.")
+                break
             records = await process_batch(session, start, params, csv_file)
             if not records:
                 break
             start += params["maximumRecords"]
-            await asyncio.sleep(5)  # To prevent overloading the server
+            await asyncio.sleep(2)  # To prevent overloading the server
