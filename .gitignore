@@ -1,10 +1,51 @@
+# Python
 *.pyc
 *.pyo
 *.pyd
 __pycache__/
+*.so
+
+# Virtual environments
 env/
+.env
+venv/
+.venv
 .llm/
+
+# IDEs and editors
 .vscode/
 .idea/
 .ipynb_checkpoints/
+*.swp
+*.swo
+
+# Logs
 *.log
+
+# Data folders
+k10plus_2010_to_2020/
+# data/*.csv
+data/
+
+# Model outputs and checkpoints
+results/
+*.pt
+*.pth
+*.ckpt
+checkpoints/
+models/
+wandb/
+
+# Large files and temporary data
+*.zip
+*.tar.gz
+*.h5
+*.pickle
+*.pkl
+temp/
+tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+testing.ipynb

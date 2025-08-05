@@ -1,0 +1,38 @@
+# Core ML/DL libraries
+torch>=2.0.0
+transformers>=4.30.0
+scikit-learn>=1.3.0
+
+# Data handling
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Progress tracking and utilities  
+tqdm>=4.65.0
+
+# Jupyter notebook support
+ipykernel>=6.25.0
+jupyter>=1.0.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Web scraping and async (for k10plus_fetcher)
+aiohttp>=3.8.0
+lxml>=4.9.0
+
+# Optional LLM tools (already installed in .llm environment)
+# llm>=0.26
+
+# Development utilities
+python-dotenv
+
+# Additional ML libraries from k10plus_fetcher (optional)
+# datasets>=2.0.0
+# sentence-transformers>=2.2.0
+# openai>=1.0.0
+
+# Note: Some packages from k10plus_fetcher/requirements.txt appear to be
+# for advanced LLM workflows and may not be needed for the core classification task:
+# hf_xet, ragas, deepeval, vllm, unsloth, peft, trl, groq, pinecone, docarray, grandalf

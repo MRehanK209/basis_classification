@@ -1,0 +1,115 @@
+# BK Classification Pipeline Configuration
+
+# Execution Control - Configure what to run
+execution:
+  run_preprocessing: true    # Run data preprocessing
+  run_baseline: true        # Check baseline config for actual execution  
+  run_training: false       # Run model training (set to true when ready)
+
+# Data Processing
+data:
+  raw_data_path: "data/k10plus_2010_to_2020.csv"
+  output_dir: "data/"
+  frequency_threshold: 10
+  sample_size: null  # Set to null to load entire file, or specify a number
+
+# Train/Val/Test Split  
+split:
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  random_seed: 42
+  stratify: false
+
+# Model Configuration
+model:
+  name: "facebook/bart-large"
+  model_type: "bart_classifier"
+  max_length: 768
+  num_labels: null
+
+# Training Parameters
+training:
+  batch_size: 64
+  epochs: 15
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  use_mixed_precision: true
+  gradient_accumulation_steps: 2
+  warmup_steps: 1000
+  optimizer: "adamw"
+  scheduler: "cosine"
+
+# Evaluation Metrics Configuration
+evaluation:
+  metrics:
+    - "subset_accuracy"
+    - "mcc"
+    - "precision_micro"
+    - "recall_micro"
+    - "f1_micro"
+    - "precision_macro"
+    - "recall_macro"
+    - "f1_macro"
+  prediction_threshold: 0.5
+  mcc_method: "global"
+  save_predictions: true
+
+# Baseline Configuration - SIMPLIFIED
+baseline:
+  run_random_baseline: true  # true = run uniform baseline, false = skip baseline
+
+# System Configuration
+system:
+  use_gpu: true
+  save_dir: "results"
+  experiment_name: null
+  log_level: "INFO"
+  set_deterministic: true
+  save_checkpoints: true
+  checkpoint_frequency: 3
+  save_best_only: true
+  monitor_metric: "f1_macro"
+
+# Data Preprocessing Options
+preprocessing:
+  text_fields:
+    - "Title"
+    - "Summary"
+    - "Keywords"
+    - "LOC_Keywords"
+    - "RVK"
+  max_text_length: 768
+  clean_text: true
+  remove_special_chars: false
+  lowercase: false
+  min_labels_per_sample: 1
+  max_labels_per_sample: 20
+
+# Logging and Monitoring
+logging:
+  log_to_file: true
+  log_file: "pipeline.log"
+  tensorboard: false   
+  wandb: true     
+  wandb_project: "bk-classification"
+  log_data_stats: true
+  log_model_architecture: true
+  log_training_progress: true
+  log_evaluation_details: true
+
+# Advanced Options
+advanced:
+  gradient_checkpointing: true
+  dataloader_num_workers: 8
+  pin_memory: true
+  prefetch_factor: 4
+  early_stopping:
+    enabled: true
+    patience: 5
+    min_delta: 0.0005
+    monitor_metric: "f1_macro"
+  lr_scheduler:
+    type: "cosine"
+    warmup_ratio: 0.05
+    min_lr: 1e-7
