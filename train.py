@@ -59,8 +59,8 @@ def train_model(model, train_data, dev_data, device, config):
         # Print metrics
         print(f"\nEpoch {epoch+1}/{config.epochs}:")
         print(f"Train Loss: {avg_train_loss:.4f}")
-        print(f"Train Metrics: Acc={train_metrics[0]:.4f}, F1={train_metrics[4]:.4f}")
-        print(f"Val Metrics: Acc={val_metrics[0]:.4f}, F1={val_metrics[4]:.4f}")
+        print(f"Train Metrics: Acc={train_metrics[0]:.4f}, F1={train_metrics[4]:.4f}, MCC={train_metrics[1]:.4f}, Precision={train_metrics[2]:.4f}, Recall={train_metrics[3]:.4f}, Subset={train_metrics[5]:.4f}")
+        print(f"Val Metrics: Acc={val_metrics[0]:.4f}, F1={val_metrics[4]:.4f}, MCC={val_metrics[1]:.4f}, Precision={val_metrics[2]:.4f}, Recall={val_metrics[3]:.4f}, Subset={val_metrics[5]:.4f}")
         
         history.append((avg_train_loss, train_metrics, val_metrics))
 

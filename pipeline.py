@@ -26,6 +26,8 @@ from model import get_model
 from utils import seed_everything, load_label_map
 from config import get_config
 from random_baseline import evaluate_random_baseline_on_test
+from utils import evaluate_model
+import matplotlib.pyplot as plt
 
 # Load environment variables
 try:
@@ -127,7 +129,32 @@ class ModularBKPipeline:
             tags.append('training')
             
         return tags if tags else ['pipeline']
-    
+
+    def _setup_directories(self):
+        """Create necessary directories"""
+        base_save = self.config['system']['save_dir']
+        data_out = self.config['data']['output_dir']
+
+        # Per-run descriptor and directories
+        self.run_desc = self._model_desc()
+        self.run_dir = os.path.join(base_save, self.run_desc)
+        self.ckpt_dir = os.path.join(self.run_dir, 'checkpoints')
+
+        for p in [data_out, base_save, self.run_dir, self.ckpt_dir]:
+            Path(p).mkdir(parents=True, exist_ok=True)
+
+    def _model_desc(self) -> str:
+        name = self.config['model']['name'].split('/')[-1].replace('/', '-')
+        mtype = self.config['model']['model_type']
+        bs = self.config['training']['batch_size']
+        epochs = self.config['training']['epochs']
+        # sample size tag (use 'ALL' when None)
+        sample = self.config['data'].get('sample_size', None)
+        sample_tag = f"s{sample}" if sample is not None else "sALL"
+        # timestamp tag
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return f"{mtype}_{name}_bs{bs}_e{epochs}_{sample_tag}_{ts}"
+
     def run_pipeline(self):
         """Run the complete configurable pipeline"""
         logger.info("=" * 60)
@@ -346,11 +373,15 @@ class ModularBKPipeline:
         train_data = transform_data(train_df, label_map,
                                    max_length=config_obj.max_length,
                                    batch_size=config_obj.batch_size,
-                                   model_name=config_obj.model_name)
+                                   model_name=config_obj.model_name,
+                                   num_workers=config_obj.num_workers,
+                                   pin_memory=config_obj.pin_memory)
         dev_data = transform_data(val_df, label_map,
                                  max_length=config_obj.max_length,
                                  batch_size=config_obj.batch_size,
-                                 model_name=config_obj.model_name)
+                                 model_name=config_obj.model_name,
+                                 num_workers=config_obj.num_workers,
+                                 pin_memory=config_obj.pin_memory)
         
         # Initialize model
         model = get_model(config_obj.model_type, num_labels=config_obj.num_labels)
@@ -363,16 +394,80 @@ class ModularBKPipeline:
         # Train model
         model, history = train_model(model, train_data, dev_data, device, config_obj)
         
-        # Extract final metrics
-        final_train_metrics = history[-1][1] if history else None
-        final_val_metrics = history[-1][2] if history else None
+        epochs = list(range(1, len(history) + 1))
+
+        # history entry: (avg_train_loss, train_metrics, val_metrics)
+        # train/val metrics order: [0]=acc, [1]=mcc, [2]=precision, [3]=recall, [4]=f1, [5]=subset_acc
+        train_acc     = [h[1][0] for h in history]
+        val_acc       = [h[2][0] for h in history]
+        train_mcc     = [h[1][1] for h in history]
+        val_mcc       = [h[2][1] for h in history]
+        train_prec    = [h[1][2] for h in history]
+        val_prec      = [h[2][2] for h in history]
+        train_recall  = [h[1][3] for h in history]
+        val_recall    = [h[2][3] for h in history]
+        train_f1      = [h[1][4] for h in history]
+        val_f1        = [h[2][4] for h in history]
+        train_subset  = [h[1][5] for h in history]
+        val_subset    = [h[2][5] for h in history]
         
+        # Plot metrics across epochs
+        fig, axes = plt.subplots(2, 3, figsize=(15, 8), sharex=True)
+        plots = [
+            ("Accuracy",          train_acc,    val_acc),
+            ("Matthews (MCC)",    train_mcc,    val_mcc),
+            ("Precision",         train_prec,   val_prec),
+            ("Recall",            train_recall, val_recall),
+            ("F1",                train_f1,     val_f1),
+            ("Subset Accuracy",   train_subset, val_subset),
+        ]
+
+        for ax, (title, tr, va) in zip(axes.ravel(), plots):
+            ax.plot(epochs, tr, label="Train")
+            ax.plot(epochs, va, label="Val")
+            ax.set_title(title)
+            ax.set_xlabel("Epoch")
+            ax.set_ylabel("Score")
+            ax.legend()
+
+        plt.tight_layout()
+        plot_path = os.path.join(self.run_dir, "metrics_plot.png")
+        plt.savefig(plot_path)
+        plt.close()
+
+        # Evaluate on test set
+        test_df = pd.read_csv(os.path.join(self.config['data']['output_dir'], 'test.csv'))
+        test_data = transform_data(test_df, label_map,
+                                max_length=config_obj.max_length,
+                                batch_size=config_obj.batch_size,
+                                model_name=config_obj.model_name,
+                                num_workers=config_obj.num_workers,
+                                pin_memory=config_obj.pin_memory)
+        test_metrics = evaluate_model(model, test_data, device, desc="Evaluation on Test Set")
+
+        # Assemble results (includes test metrics)
         training_results = {
-            'final_train_accuracy': final_train_metrics[0] if final_train_metrics else None,
-            'final_train_f1': final_train_metrics[4] if final_train_metrics else None,
-            'final_val_accuracy': final_val_metrics[0] if final_val_metrics else None,
-            'final_val_f1': final_val_metrics[4] if final_val_metrics else None,
-            'total_epochs': len(history) if history else 0
+            'train_acc': train_acc,
+            'val_acc': val_acc,
+            'train_mcc': train_mcc,
+            'val_mcc': val_mcc,
+            'train_prec': train_prec,
+            'val_prec': val_prec,
+            'train_recall': train_recall,
+            'val_recall': val_recall,
+            'train_f1': train_f1,
+            'val_f1': val_f1,
+            'train_subset': train_subset,
+            'val_subset': val_subset,
+            'test_accuracy':        test_metrics[0],
+            'test_mcc':             test_metrics[1],
+            'test_precision':       test_metrics[2],
+            'test_recall':          test_metrics[3],
+            'test_f1':              test_metrics[4],
+            'test_subset_accuracy': test_metrics[5],
+            'total_epochs':         len(history) if history else 0,
+            'run_dir':              self.run_dir,
+            'metrics_plot':         plot_path
         }
         
         logger.info("Training completed!")
@@ -401,16 +496,17 @@ class ModularBKPipeline:
         config_obj.max_length = self.config['model']['max_length']
         
         # Training parameters
-        config_obj.batch_size = self.config['training']['batch_size']
-        config_obj.epochs = self.config['training']['epochs']
-        config_obj.lr = self.config['training']['learning_rate']
-        config_obj.use_mixed_precision = self.config['training']['use_mixed_precision']
+        config_obj.batch_size = int(self.config['training']['batch_size'])
+        config_obj.epochs = int(self.config['training']['epochs'])
+        config_obj.lr = float(self.config['training']['learning_rate'])
+        config_obj.use_mixed_precision = bool(self.config['training']['use_mixed_precision'])
         
         # System parameters
         config_obj.seed = self.config['split']['random_seed']
         config_obj.use_gpu = self.config['system']['use_gpu']
-        config_obj.save_dir = os.path.join(self.config['system']['save_dir'], 'checkpoints')
-        
+        config_obj.save_dir = self.ckpt_dir
+        config_obj.num_workers = int(self.config['advanced'].get('dataloader_num_workers', 0))
+        config_obj.pin_memory = bool(self.config['advanced'].get('pin_memory', False))
         return config_obj
     
     def _log_to_wandb(self, step_name: str, results: Dict):

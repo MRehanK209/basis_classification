@@ -6,6 +6,7 @@ from transformers import AutoTokenizer
 from sklearn.metrics import matthews_corrcoef, precision_score, recall_score, f1_score
 import json
 import os
+from tqdm import tqdm
 
 def load_label_map(label_map_path):
     """Load label mapping from JSON file"""
@@ -27,7 +28,7 @@ def convert_labels_to_binary(bk_list, label_map):
 
     return binary_labels
 
-def transform_data(dataset, label_map, max_length=768, batch_size=32, model_name="facebook/bart-large"):
+def transform_data(dataset, label_map, max_length=768, batch_size=32, model_name="facebook/bart-large", num_workers=0, pin_memory=False):
     """Transform dataset into DataLoader"""
     sentences = (
         "Title: " + dataset["Title"].fillna('') + "\n" +
@@ -45,68 +46,55 @@ def transform_data(dataset, label_map, max_length=768, batch_size=32, model_name
     if 'BK' in dataset.columns:
         binary_labels = torch.tensor(convert_labels_to_binary(dataset["BK"].tolist(), label_map))
         dataset = TensorDataset(input_ids, attention_mask, binary_labels)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
+                                num_workers=num_workers, pin_memory=pin_memory)
     else:
         dataset = TensorDataset(input_ids, attention_mask)
-        dataloader = DataLoader(dataset, batch_size=batch_size)
+        dataloader = DataLoader(dataset, batch_size=batch_size,
+                                num_workers=num_workers, pin_memory=pin_memory)
     
     return dataloader
 
 def accuracy_binary(predicted_labels_np, true_labels_np):
-    """Calculate various binary classification metrics"""
-    accuracies = []
-    matthews_coefficients = []
-    precisions = []
-    recalls = []
-    f1s = []
-    
-    for label_idx in range(true_labels_np.shape[1]):
-        correct_predictions = np.sum(true_labels_np[:, label_idx] == predicted_labels_np[:, label_idx])
-        total_predictions = true_labels_np.shape[0]
-        label_accuracy = correct_predictions / total_predictions
-        accuracies.append(label_accuracy)
+    # Global/micro metrics across all labels and samples
+    y_true = true_labels_np.ravel()
+    y_pred = predicted_labels_np.ravel()
 
-        matth_coef = matthews_corrcoef(true_labels_np[:, label_idx], predicted_labels_np[:, label_idx])
-        matthews_coefficients.append(matth_coef)
-        
-        precision = precision_score(true_labels_np[:, label_idx], predicted_labels_np[:, label_idx], zero_division=1)
-        recall = recall_score(true_labels_np[:, label_idx], predicted_labels_np[:, label_idx], zero_division=1)
-        f1 = f1_score(true_labels_np[:, label_idx], predicted_labels_np[:, label_idx], zero_division=1)
-        
-        precisions.append(precision)
-        recalls.append(recall)
-        f1s.append(f1)
+    # Micro accuracy over all label positions (not per label)
+    overall_accuracy = (true_labels_np == predicted_labels_np).mean()
 
+    # Global MCC / precision / recall / F1 (binary on flattened arrays)
+    mcc = matthews_corrcoef(y_true, y_pred)
+    precision = precision_score(y_true, y_pred, zero_division=1)
+    recall = recall_score(y_true, y_pred, zero_division=1)
+    f1 = f1_score(y_true, y_pred, zero_division=1)
+
+    # Subset accuracy (exact match per sample) remains last
     subset_accuracy = np.mean(np.all(true_labels_np == predicted_labels_np, axis=1))
 
-    return np.mean(accuracies), np.mean(matthews_coefficients), np.mean(precisions), np.mean(recalls), np.mean(f1s), subset_accuracy
+    return overall_accuracy, mcc, precision, recall, f1, subset_accuracy
 
-def evaluate_model(model, test_data, device):
-    """Evaluate model on test data"""
-    all_pred = []
-    all_labels = []
+def evaluate_model(model, test_data, device, desc="Eval"):
+    """Evaluate model on a dataloader and return global metrics"""
+    all_pred, all_labels = [], []
     model.eval()
 
     with torch.no_grad():
-        for batch in test_data:
+        for batch in tqdm(test_data, desc=desc, leave=False):
             input_ids, attention_mask, labels = batch
-            input_ids = input_ids.to(device)
-            attention_mask = attention_mask.to(device)
+            input_ids = input_ids.to(device, non_blocking=True)
+            attention_mask = attention_mask.to(device, non_blocking=True)
 
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             probs = torch.sigmoid(outputs)
-            predicted_labels = (probs > 0.5).int()
-
+            predicted_labels = (probs > 0.5).int().cpu()
             all_pred.append(predicted_labels)
-            all_labels.append(labels)
+            all_labels.append(labels.cpu())
 
-    all_predictions = torch.cat(all_pred, dim=0)
-    all_true_labels = torch.cat(all_labels, dim=0)
+    all_predictions = torch.cat(all_pred, dim=0).numpy()
+    all_true_labels = torch.cat(all_labels, dim=0).numpy()
 
-    true_labels_np = all_true_labels.cpu().numpy()
-    predicted_labels_np = all_predictions.cpu().numpy()
-
-    return accuracy_binary(predicted_labels_np, true_labels_np)
+    return accuracy_binary(all_predictions, all_true_labels)
 
 def load_and_split_data(data_path, sample_size=100000, train_ratio=0.8, seed=42):
     """Load and split data into train/dev sets"""

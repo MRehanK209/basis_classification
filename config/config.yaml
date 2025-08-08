@@ -3,15 +3,15 @@
 # Execution Control - Configure what to run
 execution:
   run_preprocessing: true    # Run data preprocessing
-  run_baseline: true        # Check baseline config for actual execution  
-  run_training: false       # Run model training (set to true when ready)
+  run_baseline: false        # Check baseline config for actual execution  
+  run_training: true       # Run model training (set to true when ready)
 
 # Data Processing
 data:
   raw_data_path: "data/k10plus_2010_to_2020.csv"
   output_dir: "data/"
   frequency_threshold: 10
-  sample_size: null  # Set to null to load entire file, or specify a number
+  sample_size: 20000  # Set to null to load entire file, or specify a number
 
 # Train/Val/Test Split  
 split:
@@ -31,7 +31,7 @@ model:
 # Training Parameters
 training:
   batch_size: 64
-  epochs: 15
+  epochs: 5
   learning_rate: 2e-5
   weight_decay: 0.01
   use_mixed_precision: true
