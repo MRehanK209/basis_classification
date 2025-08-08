@@ -73,19 +73,6 @@ class ModularBKPipeline:
             
         return config
     
-    def _setup_directories(self):
-        """Create necessary directories"""
-        dirs_to_create = [
-            self.config['data']['output_dir'],
-            self.config['system']['save_dir'],
-            os.path.join(self.config['system']['save_dir'], 'checkpoints'),
-            os.path.join(self.config['system']['save_dir'], 'logs'),
-            os.path.join(self.config['system']['save_dir'], 'baselines')
-        ]
-        
-        for dir_path in dirs_to_create:
-            Path(dir_path).mkdir(parents=True, exist_ok=True)
-    
     def _set_seed(self):
         """Set random seeds for reproducibility"""
         seed = self.config['split']['random_seed']
@@ -317,8 +304,8 @@ class ModularBKPipeline:
                 wandb_enabled=wandb_enabled
             )
             
-            # Save results locally
-            baseline_dir = os.path.join(self.config['system']['save_dir'], 'baselines')
+            # Save results locally inside the run-specific directory
+            baseline_dir = os.path.join(self.run_dir, 'baselines')
             os.makedirs(baseline_dir, exist_ok=True)
             results_path = os.path.join(baseline_dir, 'random_baseline_test_results.json')
             
@@ -336,8 +323,8 @@ class ModularBKPipeline:
             from random_baseline import evaluate_random_baseline
             baseline_results = evaluate_random_baseline(config_obj)
             
-            # Save fallback results
-            baseline_dir = os.path.join(self.config['system']['save_dir'], 'baselines')
+            # Save fallback results inside the run-specific directory
+            baseline_dir = os.path.join(self.run_dir, 'baselines')
             os.makedirs(baseline_dir, exist_ok=True)
             results_path = os.path.join(baseline_dir, 'random_baseline_fallback_results.json')
             
@@ -520,7 +507,7 @@ class ModularBKPipeline:
     
     def _save_pipeline_results(self, results: Dict):
         """Save complete pipeline results"""
-        results_path = os.path.join(self.config['system']['save_dir'], 'pipeline_results.json')
+        results_path = os.path.join(self.run_dir, 'pipeline_results.json')
         
         # Convert any numpy types to native Python types
         def convert_types(obj):
