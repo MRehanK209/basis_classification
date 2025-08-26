@@ -2,16 +2,16 @@
 
 # Execution Control - Configure what to run
 execution:
-  run_preprocessing: true    # Run data preprocessing
-  run_baseline: false        # Check baseline config for actual execution  
-  run_training: true       # Run model training (set to true when ready)
+  run_preprocessing: true
+  run_baseline: false  
+  run_training: true
 
 # Data Processing
 data:
   raw_data_path: "data/k10plus_2010_to_2020.csv"
   output_dir: "data/"
   frequency_threshold: 10
-  sample_size: null  # Set to null to load entire file, or specify a number
+  sample_size: null
 
 # Train/Val/Test Split  
 split:
@@ -23,41 +23,67 @@ split:
 # Model Configuration
 model:
   name: "facebook/bart-large"
-  model_type: "bart_classifier"
+  model_type: "hierarchical_bart"
   max_length: 768
   num_labels: null
 
-# Training Parameters
+# Training Parameters - ANTI-OVERFITTING FOCUSED
 training:
-  batch_size: 64
-  epochs: 15
-  learning_rate: 2e-5
-  weight_decay: 0.01
+  batch_size: 16
+  epochs: 20                    # More epochs with early stopping
+  learning_rate: 1e-5           # LOWER learning rate for stability
+  weight_decay: 0.05            # HIGHER weight decay for regularization
   use_mixed_precision: true
   gradient_accumulation_steps: 2
-  warmup_steps: 1000
+  warmup_steps: 500             # REDUCED warmup
   optimizer: "adamw"
   scheduler: "cosine"
 
-# Evaluation Metrics Configuration
+fine_tuning:
+  mode: "hierarchical_joint"
+
+hierarchy:
+  parent_rule: "before_dot"
+  enforce_inference: true
+  
+  # HIERARCHICAL-AWARE TUNING SETTINGS
+  parent_weight: 0.15           # HEAVILY favor child task (85% vs 15%)
+  fusion_type: "gated"          # Best fusion mechanism
+  fusion_dim: 768               # LARGER capacity for better learning
+  
+  # CONSISTENCY AND ROBUSTNESS
+  teacher_forcing: false        # Consistent training/inference
+  scheduled_sampling: true      # Gradual transition
+  noise_robustness: true        # Add robustness
+  
+  # HIERARCHICAL CONSTRAINTS - CAREFUL TUNING
+  use_hierarchy_mask: true
+  hierarchy_penalty_weight: 0.05  # VERY small penalty to avoid instability
+  
+  # ANTI-OVERFITTING: Sequential training
+  sequential_training: true     # ENABLE sequential training
+  parent_epochs: 5              # Quick parent training
+  freeze_parent: false          # Allow parent adaptation
+
+# Evaluation - MULTIPLE METRICS FOCUS
 evaluation:
   metrics:
     - "subset_accuracy"
-    - "mcc"
+    - "mcc"                     # PRIMARY METRIC
     - "precision_micro"
     - "recall_micro"
     - "f1_micro"
     - "precision_macro"
     - "recall_macro"
     - "f1_macro"
-  prediction_threshold: 0.5
+  prediction_threshold: 0.25    # EVEN LOWER threshold
   save_predictions: true
+  evaluation_thresholds: [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4]  # More fine-grained
 
-# Baseline Configuration - SIMPLIFIED
 baseline:
-  run_random_baseline: true  # true = run uniform baseline, false = skip baseline
+  run_random_baseline: true
 
-# System Configuration
+# System Configuration - EARLY STOPPING
 system:
   use_gpu: true
   save_dir: "results"
@@ -65,11 +91,13 @@ system:
   log_level: "INFO"
   set_deterministic: true
   save_checkpoints: true
-  checkpoint_frequency: 3
+  checkpoint_frequency: 1       # Save every epoch
   save_best_only: true
-  monitor_metric: "f1_macro"
+  monitor_metric: "mcc"         # MONITOR MCC instead of f1_macro
+  early_stopping_enabled: true  # ENABLE early stopping
+  early_stopping_patience: 5    # Stop if no improvement for 5 epochs
+  min_delta: 0.001             # Minimum improvement threshold
 
-# Data Preprocessing Options
 preprocessing:
   text_fields:
     - "Title"
@@ -77,35 +105,20 @@ preprocessing:
     - "Keywords"
     - "LOC_Keywords"
     - "RVK"
-  max_text_length: 768
-  clean_text: true
-  remove_special_chars: true
-  lowercase: true
 
-# Logging and Monitoring
 logging:
   log_to_file: true
   log_file: "pipeline.log"
   tensorboard: false   
-  wandb: true     
+  wandb: false
   wandb_project: "bk-classification"
   log_data_stats: true
   log_model_architecture: true
   log_training_progress: true
   log_evaluation_details: true
 
-# Advanced Options
 advanced:
-  gradient_checkpointing: true
-  dataloader_num_workers: 8
-  pin_memory: true
-  prefetch_factor: 4
-  early_stopping:
-    enabled: true
-    patience: 5
-    min_delta: 0.0005
-    monitor_metric: "f1_macro"
-  lr_scheduler:
-    type: "cosine"
-    warmup_ratio: 0.05
-    min_lr: 1e-7
+  gradient_checkpointing: true   # ENABLE for memory efficiency
+  dataloader_num_workers: 0
+  pin_memory: false
+  prefetch_factor: 2
