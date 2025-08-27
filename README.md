@@ -292,7 +292,6 @@ The system evaluates using multiple metrics across different prediction threshol
 |----------|----------------|----------------|-------------|---------------|----------|
 | **Two-Stage BART** | **56.4%** | **25.7%** | **0.498** | ~30 hours | Best overall performance |
 | **Hierarchical BART** | 50.7% | 12.2% | 0.409 | ~24 hours | Advanced modeling techniques |
-| **Direct BART** | N/A | ~11% | ~0.38 | ~15 hours | Baseline comparison |
 
 **Key Insights:**
 
