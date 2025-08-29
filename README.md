@@ -18,12 +18,12 @@ A comprehensive system for automatic classification of bibliographic records usi
 
 ## Project Overview
 
-This project aims to automatically classify bibliographic records using BK (Basisklassifikation) codes, a German library classification system. The system leverages advanced NLP techniques and implements **three different training approaches** to predict multiple classification codes from bibliographic metadata.
+This project aims to automatically classify bibliographic records using BK (Basisklassifikation) codes, a German library classification system. The system leverages advanced NLP techniques and implements **four different modeling strategies** to predict multiple classification codes from bibliographic metadata. Comprehensive experiments show that **two-stage fine-tuning achieves the best performance** with 25.7% subset accuracy and 0.498 MCC.
 
 ### Key Features
 
 - **Asynchronous data extraction** from K10plus SRU API
-- **Multiple training strategies**: Direct, Two-stage, and Hierarchical approaches
+- **Multiple training strategies**: Standard, Two-stage, Hierarchical, and Random baseline approaches
 - **Comprehensive evaluation** with multiple metrics and thresholds
 - **Modular pipeline** supporting different execution modes
 - **Robust preprocessing** with rare label filtering
@@ -254,63 +254,133 @@ The system evaluates using multiple metrics across different prediction threshol
 
 ## Results Comparison
 
-### Two-Stage BART Results (Best Performing)
+### Experimental Results Summary
 
-**Stage 1 (Parent Classification):**
-- **Subset Accuracy**: 56.4% 
-- **MCC**: 0.734
-- **F1-Micro**: 0.741
-- **F1-Macro**: 0.663
-- **Training**: 15 epochs on ~300 parent labels
+This section presents the actual performance results from comprehensive experiments across four different modeling strategies. All experiments were conducted on the same dataset with 250,831 samples, 1,884 child labels, and 48 parent labels.
 
-**Stage 2 (Full Classification):**
+**Experimental Setup:**
+- **Dataset Split**: 70% training, 15% validation, 15% test
+- **Hardware**: GPU with ≥24GB VRAM
+- **Evaluation**: Multiple thresholds tested, optimal threshold selected per approach
+- **Metrics**: Focus on MCC, F1-scores, and subset accuracy
+
+**Model Configurations Used:**
+
+| Approach | Model Type | Batch Size | Epochs | Learning Rate | Special Settings |
+|----------|------------|------------|--------|---------------|------------------|
+| **Two-Stage** | `bart_classifier` | 64 | 15+15 | 2e-5 | Stage 1: Parent only, Stage 2: Full labels |
+| **Standard** | `bart_classifier` | 64 | 15 | 2e-5 | Direct multi-label training |
+| **Hierarchical** | `hierarchical_bart` | 16 | 20 | 1e-5 | Joint parent-child optimization |
+| **Random** | `random_classifier` | 64 | - | - | Random prediction baseline |
+
+#### 1. Two-Stage Fine-tuning (Best Performing) ⭐
+
+**Final Test Results:**
 - **Subset Accuracy**: 25.7%
 - **MCC**: 0.498
-- **F1-Micro**: 0.479
-- **F1-Macro**: 0.214
-- **Training**: 15 epochs on 1,884 full labels (warm start from Stage 1)
+- **Precision (Micro)**: 66.1%
+- **Recall (Micro)**: 37.6%
+- **F1-Score (Micro)**: 47.9%
+- **Precision (Macro)**: 33.8%
+- **Recall (Macro)**: 17.5%
+- **F1-Score (Macro)**: 21.4%
+- **Loss**: 0.0031
 
-### Hierarchical BART Results
+#### 2. Standard Fine-tuning (Direct BART)
 
-**Best Performance (Threshold = 0.25):**
+**Final Test Results:**
+- **Subset Accuracy**: 24.0%
+- **MCC**: 0.486
+- **Precision (Micro)**: 67.3%
+- **Recall (Micro)**: 35.1%
+- **F1-Score (Micro)**: 46.1%
+- **Precision (Macro)**: 31.8%
+- **Recall (Macro)**: 15.4%
+- **F1-Score (Macro)**: 19.0%
+- **Loss**: 0.0031
 
-**Parent Level:**
-- **Subset Accuracy**: 50.7%
-- **MCC**: 0.724
-- **F1-Micro**: 0.700
-- **F1-Macro**: 0.640
+#### 3. Hierarchical Aware Fine-tuning
 
-**Child Level:**
-- **Subset Accuracy**: 12.2%
-- **MCC**: 0.409
-- **F1-Micro**: 0.401
-- **F1-Macro**: 0.139
+**Final Test Results:**
+- **Subset Accuracy**: 11.1%
+- **MCC**: 0.387
+- **Precision (Micro)**: 33.8%
+- **Recall (Micro)**: 44.4%
+- **F1-Score (Micro)**: 38.4%
+- **Precision (Macro)**: 13.5%
+- **Recall (Macro)**: 16.2%
+- **F1-Score (Macro)**: 12.6%
+- **Loss**: 0.0084
 
-### Performance Analysis & Key Findings
+**Hierarchical Training Details:**
+- **Parent Classification**: MCC 0.695, F1-micro 69.5%
+- **Child Classification**: MCC 0.387, F1-micro 38.4%
+- **Training**: 20 epochs with hierarchical constraints
 
-| Approach | Parent Accuracy | Child Accuracy | MCC (Child) | Training Time | Best For |
-|----------|----------------|----------------|-------------|---------------|----------|
-| **Two-Stage BART** | **56.4%** | **25.7%** | **0.498** | ~30 hours | Best overall performance |
-| **Hierarchical BART** | 50.7% | 12.2% | 0.409 | ~24 hours | Advanced modeling techniques |
+#### 4. Random Baseline
 
-**Key Insights:**
+**Test Results:**
+- **Subset Accuracy**: 0.0%
+- **MCC**: -0.001
+- **Precision (Micro)**: 0.1%
+- **Recall (Micro)**: 49.6%
+- **F1-Score (Micro)**: 0.2%
+- **Precision (Macro)**: 0.1%
+- **Recall (Macro)**: 50.3%
+- **F1-Score (Macro)**: 0.1%
 
-1. **Two-stage training significantly outperforms other approaches**
-   - 25.7% vs 12.2% subset accuracy on child classification
-   - 0.498 vs 0.409 MCC score
-   - Better transfer learning from parent to child tasks
+### Comprehensive Performance Analysis
 
-2. **Parent classification is much easier than child classification**
-   - 50-56% accuracy for parent vs 12-26% for child
-   - Coarse-grained categories are more predictable
+| Approach | Subset Accuracy | MCC | F1-Micro | F1-Macro | Training Strategy | Performance Tier |
+|----------|-----------------|-----|----------|----------|-------------------|------------------|
+| **Two-Stage Fine-tuning** | **25.7%** | **0.498** | **47.9%** | **21.4%** | Parent→Child Sequential |  **Best Overall** |
+| **Standard Fine-tuning** | 24.0% | 0.486 | 46.1% | 19.0% | Direct Multi-label |  **Strong Baseline** |
+| **Hierarchical Fine-tuning** | 11.1% | 0.387 | 38.4% | 12.6% | Joint Hierarchical |  **Advanced Technique** |
+| **Random Baseline** | 0.0% | -0.001 | 0.2% | 0.1% | Random Prediction |  **Reference** |
 
-3. **Progressive learning works better than joint optimization**
-   - Two-stage approach outperforms simultaneous hierarchical training
-   - Sequential learning allows better specialization
+### Key Experimental Findings
 
-4. **Threshold optimization is crucial**
-   - Performance varies significantly across thresholds
-   - Optimal threshold around 0.25-0.5 depending on metric
+#### 1. **Two-Stage Training Achieves Best Performance**
+- **Winner**: Two-stage approach with 25.7% subset accuracy and 0.498 MCC
+- **Margin**: +1.7% subset accuracy over standard fine-tuning
+- **Insight**: Progressive learning (parent→child) provides better initialization
+
+#### 2. **Standard Fine-tuning is Surprisingly Competitive**
+- **Strong Performance**: 24.0% subset accuracy, only slightly behind two-stage
+- **Efficiency**: Simpler architecture with comparable results
+- **Trade-off**: Easier implementation vs. slightly lower performance
+
+#### 3. **Hierarchical Approach Underperforms**
+- **Challenges**: Complex joint optimization leads to lower performance
+- **Analysis**: 11.1% subset accuracy suggests difficulty in simultaneous learning
+- **Parent vs Child**: Parent classification works well (69.5% F1), but child classification suffers
+
+#### 4. **Precision vs Recall Trade-offs**
+- **Two-Stage & Standard**: High precision (66-67%), moderate recall (35-38%)
+- **Hierarchical**: Balanced precision/recall but at lower absolute values
+- **Implication**: Conservative prediction strategies work better for this task
+
+#### 5. **Macro vs Micro Metrics Gap**
+- **Large Gap**: All approaches show significant macro < micro performance
+- **Cause**: Label imbalance - frequent classes dominate micro-averaged metrics
+- **Solution**: Two-stage approach handles rare labels best (21.4% macro F1)
+
+### Practical Recommendations
+
+#### **For Production Use** 📈
+- **Recommended**: Two-stage fine-tuning approach
+- **Rationale**: Best overall performance with reasonable complexity
+- **Implementation**: Train parent classifier first, then fine-tune on full labels
+
+#### **For Research & Development** 🔬
+- **Baseline**: Standard fine-tuning for quick experiments
+- **Advanced**: Hierarchical approach for studying structural relationships
+- **Comparison**: Always include random baseline for perspective
+
+#### **For Resource-Constrained Environments** ⚡
+- **Option 1**: Standard fine-tuning (simpler, faster)
+- **Option 2**: Parent-only classification (if coarse labels sufficient)
+- **Trade-off**: Slight performance reduction for implementation simplicity
 
 ## Setup and Installation
 
@@ -491,5 +561,5 @@ training:
 This project implements academic research in automated library classification. When using this code, please cite appropriately and respect the K10plus terms of service for data usage.
 
 **Contact**: [m.khalid@stud.uni-goettingen.de]
-**Last Updated**: [25 August, 2025]
-**Version**: 2.0.0
+**Last Updated**: [August 29, 2025]
+**Version**: 2.1.0
